@@ -357,8 +357,8 @@ def test_create_diff_checkpoint(diff_project):
         diff = FileDiff.query.filter_by(
             file_path_id=file_path_id, version=16, rank=1
         ).first()
-        if os.path.exists(diff.abs_path):
-            os.remove(diff.abs_path)
+        assert os.path.exists(diff.abs_path)
+        os.remove(diff.abs_path)
 
         diff.construct_checkpoint()
         assert mock.called
