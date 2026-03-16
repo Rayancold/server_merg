@@ -135,7 +135,7 @@ class Project(db.Model):
         project_workspace = current_app.ws_handler.get(self.workspace_id)
         return project_workspace
 
-    def get_latest_file_history_ids(self) -> List[int]:
+    def get_latest_files_cache(self) -> List[int]:
         """Get latest file history ids either from cached table or calculate them on the fly"""
         if self.latest_project_files.file_history_ids is not None:
             return self.latest_project_files.file_history_ids
@@ -1468,7 +1468,7 @@ class ProjectVersion(db.Model):
         latest_files_map = {
             fh.path: fh.id
             for fh in FileHistory.query.filter(
-                FileHistory.id.in_(self.project.get_latest_file_history_ids())
+                FileHistory.id.in_(self.project.get_latest_files_cache())
             ).all()
         }
 
