@@ -97,6 +97,11 @@ class BigChunkError(ResponseError):
     detail = f"Chunk size exceeds maximum allowed size {MAX_CHUNK_SIZE} MB"
 
 
+class BatchLimitError(ResponseError):
+    code = "BatchLimitExceeded"
+    detail = f"Batch size exceeds maximum allowed size {Configuration.MAX_BATCH_SIZE}"
+
+
 class DiffDownloadError(ResponseError):
     code = "DiffDownloadError"
     detail = (

@@ -18,11 +18,13 @@ from marshmallow import ValidationError
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.exc import ObjectDeletedError
 
+from .schemas_v2 import BatchErrorSchema, ProjectSchema as ProjectSchemaV2
 from ..app import db
 from ..auth import auth_required
 from ..auth.models import User
 from .errors import (
     AnotherUploadRunning,
+    BatchLimitError,
     BigChunkError,
     DataSyncError,
     DiffDownloadError,
@@ -43,7 +45,12 @@ from .models import (
     project_version_created,
     push_finished,
 )
-from .permissions import ProjectPermissions, require_project_by_uuid, projects_query
+from .permissions import (
+    ProjectPermissions,
+    check_project_permissions,
+    require_project_by_uuid,
+    projects_query,
+)
 from .public_api_controller import catch_sync_failure
 from .schemas import (
     ProjectMemberSchema,
@@ -529,3 +536,40 @@ def list_workspace_projects(workspace_id, page, per_page, order_params=None, q=N
 
     data = ProjectSchemaV2(many=True).dump(result)
     return jsonify(projects=data, count=total, page=page, per_page=per_page), 200
+
+
+def list_batch_projects(body):
+    """List projects by given list of UUIDs. Limit to 100 projects per request.
+
+    :param ids: List of project UUIDs
+    :type ids: List[str]
+    :rtype: Dict[str: List[Project]]
+    """
+    ids = list(dict.fromkeys(body.get("ids", [])))
+    # remove duplicates while preserving the order
+    max_batch = current_app.config.get("MAX_BATCH_SIZE", 100)
+    if len(ids) > max_batch:
+        return BatchLimitError().response(400)
+
+    projects = current_app.project_handler.get_projects_by_uuids(ids)
+    by_id = {str(project.id): project for project in projects}
+
+    filtered_projects = []
+    for uuid in ids:
+        project = by_id.get(uuid)
+
+        if not project:
+            filtered_projects.append(
+                BatchErrorSchema().dump({"id": uuid, "error": 404})
+            )
+            continue
+
+        err = check_project_permissions(project, ProjectPermissions.Read)
+        if err is not None:
+            filtered_projects.append(
+                BatchErrorSchema().dump({"id": uuid, "error": err})
+            )
+        else:
+            filtered_projects.append(ProjectSchemaV2().dump(project))
+
+    return jsonify(projects=filtered_projects), 200
