@@ -344,5 +344,9 @@ export const ProjectApi = {
     return ProjectModule.httpService.get(
       `/v2/projects/${projectId}/collaborators`
     )
+  },
+
+  async headProject(projectId: string): Promise<AxiosResponse<void>> {
+    return ProjectModule.httpService.head(`/v2/projects/${projectId}`)
   }
 }

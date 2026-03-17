@@ -852,6 +852,38 @@ def test_get_project(client):
     assert response.status_code == 400
 
 
+def test_head_project(client):
+    """Test head project endpoint returns version header."""
+    admin = User.query.filter_by(username=DEFAULT_USER[0]).first()
+    test_workspace = create_workspace()
+    project = create_project("head_project", test_workspace, admin)
+
+    logout(client)
+    response = client.head(f"v2/projects/{project.id}")
+    assert response.status_code == 404
+
+    user = add_user("head_test", "tests")
+    login(client, user.username, "tests")
+    response = client.head(f"v2/projects/{project.id}")
+    assert response.status_code == 403
+
+    project.public = True
+    db.session.commit()
+    response = client.head(f"v2/projects/{project.id}")
+    assert response.status_code == 200
+    assert response.headers["X-Mm-Project-Version"] == ProjectVersion.to_v_name(
+        project.latest_version
+    )
+    assert response.data == b""
+
+    login_as_admin(client)
+    project.public = False
+    project.removed_at = datetime.utcnow()
+    db.session.commit()
+    response = client.head(f"v2/projects/{project.id}")
+    assert response.status_code == 404
+
+
 push_data = [
     # success
     (
