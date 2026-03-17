@@ -871,9 +871,7 @@ def test_head_project(client):
     db.session.commit()
     response = client.head(f"v2/projects/{project.id}")
     assert response.status_code == 200
-    assert response.headers["X-Mm-Project-Version"] == ProjectVersion.to_v_name(
-        project.latest_version
-    )
+    assert int(response.headers["X-Mm-Project-Version"]) == project.latest_version
     assert response.data == b""
 
     login_as_admin(client)
