@@ -36,13 +36,12 @@ SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-MerginMaps-Commercial
           </div>
 
           <div class="logo flex justify-content-center">
-            <img 
+            <img
               class="logo-image"
-              :src="logoUrl" 
-              @error="onCustomLogoError" 
-              alt="Not Found" 
+              :src="logoUrl"
+              @error="onCustomLogoError"
+              alt="Not Found"
             />
-            
           </div>
 
           <div
@@ -87,16 +86,15 @@ SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-MerginMaps-Commercial
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useRoute } from 'vue-router'
-import defaultLogoUrl from '@/assets/mm-logo.svg'
 
 import { SideBarItemModel } from '../types'
 
+import defaultLogoUrl from '@/assets/mm-logo.svg'
 import { DashboardRouteName, useUserStore } from '@/main'
+import { useInstanceStore } from '@/modules/instance/store'
 import SideBarItem from '@/modules/layout/components/SideBarItem.vue'
 import { useLayoutStore } from '@/modules/layout/store'
-import { useInstanceStore } from '@/modules/instance/store'
 import { ProjectRouteName } from '@/modules/project'
-
 
 const customLogoLoadFailed = ref(false)
 function onCustomLogoError(): void {

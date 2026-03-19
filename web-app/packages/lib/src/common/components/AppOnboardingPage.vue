@@ -54,8 +54,9 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { useInstanceStore } from '@/modules/instance/store'
+
 import defaultLogoUrl from '@/assets/mm-logo.svg'
+import { useInstanceStore } from '@/modules/instance/store'
 
 const customLogoLoadFailed = ref(false)
 function onCustomLogoError(): void {
