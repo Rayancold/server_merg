@@ -80,7 +80,7 @@ class Configuration(object):
     # for link to logo in emails
     MERGIN_LOGO_URL = config("MERGIN_LOGO_URL", default="")
     # for link to logos in EE branding
-    DASHBOARD_LOGO_URL = config("DASHBOARD_LOGO_URL", default="MERGIN_LOGO_URL")
+    DASHBOARD_LOGO_URL = config("DASHBOARD_LOGO_URL", default=MERGIN_LOGO_URL)
 
     MERGIN_SUBSCRIPTIONS = config("MERGIN_SUBSCRIPTIONS", default=False, cast=bool)
     MERGIN_TESTING = config("MERGIN_TESTING", default=False, cast=bool)
