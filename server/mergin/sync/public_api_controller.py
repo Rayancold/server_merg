@@ -8,6 +8,7 @@ import json
 import os
 import logging
 from dataclasses import asdict
+from enum import Enum
 from typing import Dict
 from datetime import datetime
 
@@ -80,6 +81,7 @@ from .utils import (
     generate_location,
     is_valid_uuid,
     get_device_id,
+    is_versioned_file,
     prepare_download_response,
     get_device_id,
     wkb2wkt,
@@ -287,6 +289,12 @@ def delete_project(namespace, project_name):  # noqa: E501
     return NoContent, 200
 
 
+class DowloadFileAction(Enum):
+    FULL = "full"
+    FULL_GPKG = "full_gpkg"
+    DIFF = "diff"
+
+
 def download_project_file(
     project_name, namespace, file, version=None, diff=None
 ):  # noqa: E501
@@ -307,10 +315,20 @@ def download_project_file(
 
     :rtype: file
     """
-    project = require_project(namespace, project_name, ProjectPermissions.Read)
-    if diff and not version:
+    if not is_versioned_file(file):
+        action = DowloadFileAction.FULL
+    elif diff:
+        action = DowloadFileAction.DIFF
+    else:
+        action = DowloadFileAction.FULL_GPKG
+
+    if action is DowloadFileAction.DIFF and not version:
         abort(400, f"Changeset must be requested for particular file version")
 
+    if action is DowloadFileAction.FULL and diff is True:
+        abort(404, f"No diff in particular file {file})")
+
+    project = require_project(namespace, project_name, ProjectPermissions.Read)
     lookup_version = (
         ProjectVersion.from_v_name(version) if version else project.latest_version
     )
@@ -329,24 +347,30 @@ def download_project_file(
     if not fh or fh.change == PushChangeType.DELETE.value:
         abort(404, f"File {file} not found")
 
-    if diff and version:
-        # get specific version of geodiff file modified in requested version
-        if not fh.diff:
-            abort(404, f"No diff in particular file {file} version")
-        file_path = fh.diff_file.location
-    else:
-        file_path = fh.location
+    # user asked for diff, but there is no diff at that version
+    if action is DowloadFileAction.DIFF and not fh.diff:
+        abort(404, f"No diff in particular file {file} version")
 
-    if version and not diff:
-        project.storage.restore_versioned_file(
-            file, ProjectVersion.from_v_name(version)
-        )
-
+    file_path = (
+        fh.diff_file.location if action is DowloadFileAction.DIFF else fh.location
+    )
     abs_path = os.path.join(project.storage.project_dir, file_path)
-    # check file exists (e.g. there might have been issue with restore)
+
     if not os.path.exists(abs_path):
-        logging.error(f"Missing file {namespace}/{project_name}/{file_path}")
-        abort(404)
+        if action is DowloadFileAction.FULL_GPKG:
+            project.storage.restore_versioned_file(
+                file, ProjectVersion.from_v_name(version)
+            )
+
+            # check again after restore
+            if not os.path.exists(abs_path):
+                logging.error(
+                    f"Failed to restore {namespace}/{project_name}/{file_path}"
+                )
+                abort(404)
+        else:
+            logging.error(f"Missing file {namespace}/{project_name}/{file_path}")
+            abort(404)
 
     response = prepare_download_response(project.storage.project_dir, file_path)
     return response

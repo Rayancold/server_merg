@@ -135,6 +135,36 @@ class Project(db.Model):
         project_workspace = current_app.ws_handler.get(self.workspace_id)
         return project_workspace
 
+    def get_latest_files_cache(self) -> List[int]:
+        """Get latest file history ids either from cached table or calculate them on the fly"""
+        if self.latest_project_files.file_history_ids is not None:
+            return self.latest_project_files.file_history_ids
+
+        query = f"""
+            WITH latest_changes AS (
+                SELECT
+                    fp.id,
+                    pv.project_id,
+                    max(pv.name) AS version
+                FROM
+                    project_version pv
+                    LEFT OUTER JOIN file_history fh ON fh.version_id = pv.id
+                    LEFT OUTER JOIN project_file_path fp ON fp.id = fh.file_path_id
+                WHERE
+                    pv.project_id = :project_id
+                    AND pv.name <= :latest_version
+                GROUP BY
+                    fp.id, pv.project_id
+            )
+            SELECT
+                fh.id 
+            FROM latest_changes ch
+            LEFT OUTER JOIN file_history fh ON (fh.file_path_id = ch.id AND fh.project_version_name = ch.version AND fh.change != 'delete')
+            WHERE fh.id IS NOT NULL;
+        """
+        params = {"project_id": self.id, "latest_version": self.latest_version}
+        return [row.id for row in db.session.execute(text(query), params).fetchall()]
+
     def cache_latest_files(self) -> None:
         """Get project files from changes (FileHistory) and save them for later use."""
         if self.latest_version is None:
@@ -514,7 +544,11 @@ class ProjectFilePath(db.Model):
 
 
 class LatestProjectFiles(db.Model):
-    """Store project latest version files history ids"""
+    """Store project latest version files history ids.
+
+    This is a caching table to store the latest relevant files history ids for further use in
+    Project.files and ProjectVersion.files. It is updated when ProjectVersion itself is created.
+    """
 
     project_id = db.Column(
         UUID(as_uuid=True),
@@ -743,22 +777,21 @@ class FileHistory(db.Model):
             return None, []
 
         diffs = []
-        cached_items = Checkpoint.get_checkpoints(
-            basefile.project_version_name, version
-        )
+        checkpoints = Checkpoint.get_checkpoints(basefile.project_version_name, version)
         expected_diffs = (
             FileDiff.query.filter_by(
                 basefile_id=basefile.id,
             )
             .filter(
                 tuple_(FileDiff.rank, FileDiff.version).in_(
-                    [(item.rank, item.end) for item in cached_items]
+                    [(item.rank, item.end) for item in checkpoints]
                 )
             )
             .all()
         )
 
-        for item in cached_items:
+        for item in checkpoints:
+            diff_needs_to_be_created = False
             diff = next(
                 (
                     d
@@ -767,25 +800,38 @@ class FileHistory(db.Model):
                 ),
                 None,
             )
-            if diff and os.path.exists(diff.abs_path):
-                diffs.append(diff)
-            elif item.rank > 0:
-                # fallback if checkpoint does not exist: replace merged diff with individual diffs
-                individual_diffs = (
-                    FileDiff.query.filter_by(
-                        basefile_id=basefile.id,
-                        rank=0,
-                    )
-                    .filter(
-                        FileDiff.version >= item.start, FileDiff.version <= item.end
-                    )
-                    .order_by(FileDiff.version)
-                    .all()
-                )
-                diffs.extend(individual_diffs)
+            if diff:
+                if os.path.exists(diff.abs_path):
+                    diffs.append(diff)
+                else:
+                    diff_needs_to_be_created = True
             else:
-                # we asked for individual diff but there is no such diff as there was not change at that version
-                continue
+                # we do not have record in DB, create a checkpoint if it makes sense
+                if item.rank > 0 and FileDiff.can_create_checkpoint(file_id, item):
+                    diff = FileDiff(
+                        basefile=basefile,
+                        version=item.end,
+                        rank=item.rank,
+                        path=basefile.file.generate_diff_name(),
+                        size=None,
+                        checksum=None,
+                    )
+                    db.session.add(diff)
+                    db.session.commit()
+                    diff_needs_to_be_created = True
+                else:
+                    # we asked for checkpoint where there was no change
+                    continue
+
+            if diff_needs_to_be_created:
+                diff_created = diff.construct_checkpoint()
+                if diff_created:
+                    diffs.append(diff)
+                else:
+                    logging.error(
+                        f"Failed to create a diff for file {basefile.file.path} at version {basefile.project_version_name} of rank {item.rank}."
+                    )
+                    return None, []
 
         return basefile, diffs
 
@@ -924,9 +970,10 @@ class FileDiff(db.Model):
             return True
 
         if self.rank == 0:
-            raise ValueError(
+            logging.error(
                 "Checkpoint of rank 0 should be created by user upload, cannot be constructed"
             )
+            return False
 
         # merged diffs can only be created for certain versions
         if self.version % LOG_BASE:
@@ -1434,7 +1481,7 @@ class ProjectVersion(db.Model):
         latest_files_map = {
             fh.path: fh.id
             for fh in FileHistory.query.filter(
-                FileHistory.id.in_(self.project.latest_project_files.file_history_ids)
+                FileHistory.id.in_(self.project.get_latest_files_cache())
             ).all()
         }
 
@@ -1565,6 +1612,10 @@ class ProjectVersion(db.Model):
         files that were delete after the version (and thus not necessarily present now). From these candidates
         get the latest file change before or at the specific version. If that change was not 'delete', file is present.
         """
+        # if we do not have cached file history ids use different strategy where it is not necessary
+        if self.project.latest_project_files.file_history_ids is None:
+            return self._files_from_start()
+
         query = f"""
             WITH files_changes_before_version AS (
                 WITH files_candidates AS (
