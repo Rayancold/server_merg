@@ -16,3 +16,9 @@ Next step is to create data directory for mergin maps `projects` with proper per
 If you want to persist diagnostic logs, create data directory `diagnostic_logs` with proper permissions.
 
 For more details about deployment please check [docs](https://merginmaps.com/docs/server/install/#deployment).
+
+
+## Running telemetry stack
+
+Running telemetry is optional but recommended. To run opentelemetry stack check [Readme](deployment/common/README.md).
+To enable telemetry in Mergin Maps stack, please set `OTEL_ENABLED=1` in `.prod.env`.

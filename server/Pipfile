@@ -56,5 +56,12 @@ pre-commit = "==4.1.0"
 # requirements for pytest on windows
 atomicwrites = "==1.4.0"
 
+[telemetry]
+opentelemetry-distro = {extras = ["otlp"], version = "*"}
+opentelemetry-instrumentation-flask = "*"
+opentelemetry-instrumentation-celery = "*"
+opentelemetry-instrumentation-sqlalchemy = "*"
+opentelemetry-instrumentation-logging = "*"
+
 [requires]
 python_version = "3.12"

@@ -36,6 +36,7 @@ ENV LC_ALL=C.UTF-8
 ENV LANG=C.UTF-8
 
 RUN PIP_IGNORE_INSTALLED=1 pipenv install --system --deploy --verbose --python 3.12
+RUN PIP_IGNORE_INSTALLED=1 pipenv install --system --deploy --verbose --python 3.12 --categories telemetry 
 
 USER mergin
 

@@ -70,3 +70,7 @@ If you have WebMaps enabled, after the main Mergin Maps stack is initialized, si
 docker compose -f docker-compose.maps.yml up -d
 ```
 
+## Running telemetry stack
+
+Running telemetry is optional but recommended. To run opentelemetry stack check [Readme](deployment/common/README.md).
+To enable telemetry in Mergin Maps stack, please set `OTEL_ENABLED=1` in `.prod.env`.

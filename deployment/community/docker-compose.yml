@@ -32,6 +32,9 @@ services:
       - ./diagnostic_logs:/diagnostic_logs
     env_file:
       - .prod.env
+      - ../common/telemetry/.otel.env
+    environment:
+      - OTEL_SERVICE_NAME=backend
     depends_on:
       - db
       - redis
@@ -44,9 +47,11 @@ services:
     restart: always
     env_file:
       - .prod.env
+      - ../common/telemetry/.otel.env
     environment:
       - GEVENT_WORKER=0
       - NO_MONKEY_PATCH=1
+      - OTEL_SERVICE_NAME=celery-beat
     depends_on:
       - redis
       - server
@@ -60,9 +65,12 @@ services:
     user: 901:999
     env_file:
       - .prod.env
+      - ../common/telemetry/.otel.env
     environment:
       - GEVENT_WORKER=0
       - NO_MONKEY_PATCH=1
+      - OTEL_SERVICE_NAME=celery-worker
+      - OTEL_MANUAL_CELERY_TRACING=0
     volumes:
       - ./projects:/data
     depends_on:
@@ -91,6 +99,7 @@ services:
     user: 101:999
     ports:
       - "8080:8080"
+      - "8082:8082"
     volumes:
       - ./projects:/data  # mergin maps projects data dir to host
       - ../common/nginx.conf:/etc/nginx/conf.d/default.conf
