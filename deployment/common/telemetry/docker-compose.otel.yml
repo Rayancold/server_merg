@@ -10,21 +10,29 @@ services:
     container_name: merginmaps-otel-collector
     volumes:
       - ./otel-config.yaml:/etc/otelcol-contrib/config.yaml
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
       - merginmaps
-    user: "0:0"
-    privileged: true
     ports:
       - "8125:8125/udp" # StatsD (Metrics)
       - "4317:4317" # OTLP (Traces)
       - "8889:8889" # Prometheus Scrape Port
-      # - "8888:8889"
       - "55679:55679"
     depends_on:
       tempo:
         condition: service_started
+
+  alloy:
+    image: grafana/alloy:v1.8.3
+    container_name: merginmaps-alloy
+    volumes:
+      - ./alloy-config.alloy:/etc/alloy/config.alloy
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./alloy-data:/var/lib/alloy/data
+    networks:
+      - merginmaps
+    depends_on:
+      - loki
+    command: run --server.http.listen-addr=0.0.0.0:12345 --storage.path=/var/lib/alloy/data /etc/alloy/config.alloy
 
   tempo:
     image: grafana/tempo:2.8.3

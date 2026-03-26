@@ -16,39 +16,8 @@ receivers:
     endpoint: "merginmaps-redis:6379"
     collection_interval: 10s
     #password: "${REDIS_PASSWORD}"
-  # This replaces Promtail
-  filelog:
-    include:
-      - /var/lib/docker/containers/*/*.log
-    start_at: end
-    include_file_path: true
-    operators:
-      - type: json_parser
-      - type: move
-        from: attributes.log
-        to: body
-      - type: regex_parser
-        parse_from: attributes["log.file.path"]
-        regex: '/var/lib/docker/containers/(?P<container_id>[a-f0-9]{12})'
-        on_error: send
-
 processors:
-  resourcedetection/docker:
-    detectors: [env, docker]
-    timeout: 2s
-    override: true
-  filter/exclude_collector:
-    logs:
-      log_record:
-        - 'IsMatch(body, ".*exporterhelper.*")'
-        - 'IsMatch(body, ".*Debug.*")'
-        - 'IsMatch(body, ".*kind.*exporter.*")'
   batch:
-  transform/logs:
-    log_statements:
-      - context: log
-        statements:
-          - set(resource.attributes["container_id"], attributes["container_id"]) where attributes["container_id"] != nil
   transform:
     metric_statements:
       - context: metric
@@ -67,13 +36,6 @@ processors:
     #     statements:
     #       - set(attributes["service_name"], attributes["docker_id"])
     #       - set(resource.attributes["service.name"], attributes["docker_id"])
-  attributes:
-    actions:
-      - key: service.name
-        action: insert
-        value: "merginmaps"
-
-
 exporters:
   prometheus:
     endpoint: "0.0.0.0:8889" # The Collector will "host" metrics here
@@ -84,21 +46,6 @@ exporters:
     endpoint: "merginmaps-tempo:4317"
     tls:
       insecure: true
-  loki:
-    endpoint: "http://merginmaps-loki:3100/loki/api/v1/push"
-    # This ensures the trace and span IDs are included in the log metadata
-    default_labels_enabled:
-      exporter: true
-      job: true
-      instance: true
-      level: true
-  debug:
-    verbosity: detailed
-  otlphttp/loki:
-    endpoint: "http://loki:3100/otlp"
-    tls:
-      insecure: true
-      
 service:
   extensions: [health_check]
   telemetry:
@@ -115,7 +62,3 @@ service:
       receivers: [otlp]
       processors: [batch]
       exporters: [otlp]
-    logs:
-      receivers: [filelog]
-      processors: [filter/exclude_collector, resourcedetection/docker, attributes, transform/logs, batch]
-      exporters: [otlphttp/loki]
