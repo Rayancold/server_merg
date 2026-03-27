@@ -122,8 +122,8 @@ export default defineComponent({
     return {
       loading: false,
       options: {
-        // Default is order_params=expire ASC
-        sortBy: 'expire',
+        // Default is order_params=requested_at ASC
+        sortBy: 'requested_at',
         sortDesc: false,
         itemsPerPage: 10,
         page: 1
