@@ -34,6 +34,7 @@ services:
       - .prod.env
       - ../common/telemetry/.otel.env
     environment:
+      # just to distinguish telemetry source (if enabled), does not affect functionality
       - OTEL_SERVICE_NAME=backend
     depends_on:
       - db
@@ -51,6 +52,7 @@ services:
     environment:
       - GEVENT_WORKER=0
       - NO_MONKEY_PATCH=1
+      # just to distinguish telemetry source (if enabled), does not affect functionality
       - OTEL_SERVICE_NAME=celery-beat
     depends_on:
       - redis
@@ -69,7 +71,9 @@ services:
     environment:
       - GEVENT_WORKER=0
       - NO_MONKEY_PATCH=1
+      # just to distinguish telemetry source (if enabled), does not affect functionality
       - OTEL_SERVICE_NAME=celery-worker
+      # switch this on only if threads / gevent worker type is used
       - OTEL_MANUAL_CELERY_TRACING=0
     volumes:
       - ./projects:/data
