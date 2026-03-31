@@ -1,0 +1,64 @@
+extensions:
+  health_check:
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: "0.0.0.0:4317"
+      http:
+        endpoint: "0.0.0.0:4318"
+  statsd:
+    endpoint: "0.0.0.0:8125"
+    aggregation_interval: 10s
+    enable_metric_type: true
+  redis:
+    endpoint: "merginmaps-redis:6379"
+    collection_interval: 10s
+    #password: "${REDIS_PASSWORD}"
+processors:
+  batch:
+  transform:
+    metric_statements:
+      - context: metric
+        statements:
+          - set(name, "mergin_gunicorn_workers") where name == "app.gunicorn.workers"
+          - set(name, "mergin_gunicorn_request_duration") where name == "app.gunicorn.request.duration"
+          # these metrics are not working
+          - set(name, "mergin_gunicorn_request_rate") where name == "app.gunicorn.requests"
+          - set(name, "mergin_gunicorn_log_critical") where name == "gunicorn.log.critical"
+          - set(name, "mergin_gunicorn_log_error") where name == "gunicorn.log.error"
+          - set(name, "mergin_gunicorn_log_warning") where name == "gunicorn.log.warning"
+          - set(name, "mergin_gunicorn_log_exception") where name == "gunicorn.log.exception"
+          - set(name, "mergin_gunicorn_response_code_200") where name == "app.gunicorn.request.status.200"
+    # log_statements:
+    #   - context: log
+    #     statements:
+    #       - set(attributes["service_name"], attributes["docker_id"])
+    #       - set(resource.attributes["service.name"], attributes["docker_id"])
+exporters:
+  prometheus:
+    endpoint: "0.0.0.0:8889" # The Collector will "host" metrics here
+    resource_to_telemetry_conversion:
+      enabled: true # Converts OTel resource attributes to Prometheus labels
+    add_metric_suffixes: true
+  otlp:
+    endpoint: "merginmaps-tempo:4317"
+    tls:
+      insecure: true
+service:
+  extensions: [health_check]
+  telemetry:
+    metrics:
+      address: 0.0.0.0:8888  # This enables the /metrics port
+    logs:
+      level: "warn"
+  pipelines:
+    metrics:
+      receivers: [otlp, statsd, redis]
+      processors: [transform, batch] 
+      exporters: [prometheus]
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlp]

@@ -9,6 +9,9 @@ services:
     env_file:
       - .prod.env
       - .dev.env
+      - ../common/telemetry/.otel.env
+    environment:
+      - OTEL_ENABLED=${OTEL_ENABLED:-0}
   celery-beat:
     image: celery-beat
     build:
@@ -17,6 +20,9 @@ services:
     env_file:
       - .prod.env
       - .dev.env
+      - ../common/telemetry/.otel.env
+    environment:
+      - OTEL_ENABLED=${OTEL_ENABLED:-0}
   celery-worker:
     image: celery-worker
     build:
@@ -25,6 +31,9 @@ services:
     env_file:
       - .prod.env
       - .dev.env
+      - ../common/telemetry/.otel.env
+    environment:
+      - OTEL_ENABLED=${OTEL_ENABLED:-0}
   web:
     image: merginmaps-frontend
     build:

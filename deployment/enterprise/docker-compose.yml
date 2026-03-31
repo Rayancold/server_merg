@@ -15,8 +15,11 @@ services:
       - ./diagnostic_logs:/diagnostic_logs # diagnostic logs dir
     env_file:
       - .prod.env
+      - ../common/telemetry/.otel.env
     environment:
       - GUNICORN_CMD_ARGS="--limit-request-line 8190"
+      # just to distinguish telemetry source (if enabled), does not affect functionality
+      - OTEL_SERVICE_NAME=backend
     depends_on:
       - db
     networks:
@@ -59,6 +62,11 @@ services:
     command: ["celery -A application.celery beat --loglevel=info"]
     env_file:
       - .prod.env
+      - ../common/telemetry/.otel.env
+    environment:
+      - GEVENT_WORKER=0
+      # just to distinguish telemetry source (if enabled), does not affect functionality
+      - OTEL_SERVICE_NAME=celery-beat
     depends_on:
       - db
       - redis
@@ -76,8 +84,14 @@ services:
       - ./map_data:/overviews
     env_file:
       - .prod.env
+      - ../common/telemetry/.otel.env
     environment:
       - CELERY_ROUTES={ 'qgis-extractor.*':{'queue':'extractor'} }
+      - GEVENT_WORKER=0
+      # just to distinguish telemetry source (if enabled), does not affect functionality
+      - OTEL_SERVICE_NAME=celery-worker
+      # switch this on only if threads / gevent worker type is used
+      - OTEL_MANUAL_CELERY_TRACING=0
     depends_on:
       - db
       - redis

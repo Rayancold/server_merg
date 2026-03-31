@@ -33,6 +33,7 @@ from mergin.celery import celery, configure_celery
 from mergin.stats.config import Configuration
 from mergin.stats.tasks import save_statistics, send_statistics
 from mergin.stats.app import register as register_stats
+from mergin.otel.app import register as register_otel
 
 Configuration.SERVER_TYPE = "ce"
 Configuration.USER_SELF_REGISTRATION = False
@@ -52,6 +53,7 @@ application = create_app(
     ]
 )
 register_stats(application)
+register_otel(application)
 # patch celery object with application settings and attach flask context to it
 configure_celery(celery, application, ["mergin.auth", "mergin.sync", "mergin.stats"])
 
