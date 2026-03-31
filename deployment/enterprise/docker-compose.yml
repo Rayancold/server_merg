@@ -19,7 +19,6 @@ services:
     environment:
       - GUNICORN_CMD_ARGS="--limit-request-line 8190"
       - OTEL_SERVICE_NAME=backend
-      - OTEL_ENABLED=${OTEL_ENABLED:-0}
     depends_on:
       - db
     networks:
@@ -66,7 +65,6 @@ services:
     environment:
       - GEVENT_WORKER=0
       - OTEL_SERVICE_NAME=celery-beat
-      - OTEL_ENABLED=${OTEL_ENABLED:-0}
     depends_on:
       - db
       - redis
@@ -89,7 +87,6 @@ services:
       - CELERY_ROUTES={ 'qgis-extractor.*':{'queue':'extractor'} }
       - GEVENT_WORKER=0
       - OTEL_SERVICE_NAME=celery-worker
-      - OTEL_ENABLED=${OTEL_ENABLED:-0}
       - OTEL_MANUAL_CELERY_TRACING=0
     depends_on:
       - db
