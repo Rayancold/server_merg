@@ -1017,8 +1017,9 @@ class FileDiff(db.Model):
         )
 
         for item in cached_items:
-            # basefile is a start of the diff chain
-            if item.start <= basefile.project_version_name:
+            # basefile is a start of the diff chain, item cannot cross over it,
+            # but merged diffs can start with basefile version containing changes since then
+            if item.start < basefile.project_version_name:
                 continue
 
             # find diff in table and on disk
