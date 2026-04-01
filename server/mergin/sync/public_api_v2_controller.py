@@ -204,6 +204,7 @@ def get_project(id, files_at_version=None):
     """Get project info. Include list of files at specific version if requested."""
     project = require_project_by_uuid(id, ProjectPermissions.Read, expose=False)
     data = ProjectSchemaV2().dump(project)
+
     if files_at_version:
         pv = ProjectVersion.query.filter_by(
             project_id=project.id, name=ProjectVersion.from_v_name(files_at_version)

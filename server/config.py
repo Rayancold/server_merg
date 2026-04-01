@@ -39,7 +39,7 @@ accesslog = "-"
 
 errorlog = "-"
 
-access_log_format = '[ACCESS] %({x-forwarded-for}i)s %(m)s %(U)s %(q)s %(H)s %(s)s %(B)s %(f)s "%(a)s" %(D)s %(p)s'
+access_log_format = '[ACCESS] [%({X-Trace-Id}o)s] %({x-forwarded-for}i)s %(m)s %(U)s %(q)s %(H)s %(s)s %(B)s %(f)s "%(a)s" %(D)s %(p)s'
 
 logconfig = "gunicorn-logging.conf"
 
@@ -48,6 +48,8 @@ max_requests = 20000
 max_requests_jitter = 5000
 
 timeout = 30
+
+preload_app = False
 
 
 """
@@ -90,9 +92,28 @@ class OneLineExceptionFormatter(logging.Formatter):
     """
 
     def format(self, record):
-        msg = super().format(
-            record
-        )  # format message according to formatter class passed
+        from opentelemetry import trace
+
+        # force fetch the ID if it's missing or zeroed
+        if getattr(record, "otelTraceID", "0") in ["0", "-"]:
+            span = trace.get_current_span().get_span_context()
+            record.otelTraceID = format(span.trace_id, "032x") if span.is_valid else "-"
+
+        # format message according to formatter class passed
+        msg = super().format(record)
         if record.exc_text:
             msg = msg.replace("\n", "||")
         return msg
+
+
+def post_fork(server, worker):
+    from mergin.config import Configuration
+    from mergin.otel.instrument import instrument_flask_app
+
+    server.log.info("Worker spawned (pid: %s)", worker.pid)
+    flask_app = worker.app.wsgi()
+
+    # We initialize the OTel SDK here, inside the child process.
+    # This ensures each worker gets its own fresh background exporter thread.
+    if Configuration.OTEL_ENABLED:
+        instrument_flask_app(flask_app)
