@@ -777,7 +777,10 @@ class FileHistory(db.Model):
             return None, []
 
         diffs = []
-        checkpoints = Checkpoint.get_checkpoints(basefile.project_version_name, version)
+        # get all checkpoints with diffs after basefile which should be applied
+        checkpoints = Checkpoint.get_checkpoints(
+            basefile.project_version_name + 1, version
+        )
         expected_diffs = (
             FileDiff.query.filter_by(
                 basefile_id=basefile.id,
@@ -922,6 +925,10 @@ class FileDiff(db.Model):
         if not basefile:
             return False
 
+        # do not create checkpoint if basefile is present in the range as it does not have valid use case
+        if basefile.project_version_name >= checkpoint.start:
+            return False
+
         file_was_deleted = (
             FileHistory.query.filter_by(file_path_id=file_path_id)
             .filter(
@@ -1017,9 +1024,8 @@ class FileDiff(db.Model):
         )
 
         for item in cached_items:
-            # basefile is a start of the diff chain, item cannot cross over it,
-            # but merged diffs can start with basefile version containing changes since then
-            if item.start < basefile.project_version_name:
+            # basefile is a start of the diff chain, checkpoint must start after basefile version
+            if basefile.project_version_name >= item.start:
                 continue
 
             # find diff in table and on disk
