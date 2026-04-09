@@ -324,7 +324,10 @@ def test_create_diff_checkpoint(diff_project):
     assert basefile.project_version_name == 9
     # individual diffs v11, v12 + (v13-v16) + (v17-v20) as the last one
     assert len(diffs) == 4
-    assert diffs[-1] == diff
+    assert diffs[0].version == 11 and diffs[0].rank == 0
+    assert diffs[1].version == 12 and diffs[1].rank == 0
+    assert diffs[2].version == 16 and diffs[2].rank == 1
+    assert diffs[3].version == 20 and diffs[3].rank == 1
 
     # repeat - nothing to do
     mtime = os.path.getmtime(diff.abs_path)
