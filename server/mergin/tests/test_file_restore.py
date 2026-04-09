@@ -252,7 +252,8 @@ def test_version_file_restore(diff_project):
     test_file = os.path.join(diff_project.storage.project_dir, "v30", "test.gpkg")
     os.rename(test_file, test_file + "_backup")
     diff_project.storage.restore_versioned_file("test.gpkg", 30)
-    checkpoints = Checkpoint.get_checkpoints(9, 30)
+    # only count diffs from v11-v30 where they were present
+    checkpoints = Checkpoint.get_checkpoints(11, 30)
     assert os.path.exists(test_file)
     assert gpkgs_are_equal(test_file, test_file + "_backup")
     assert FileDiff.query.filter_by(file_path_id=file_path_id).filter(
@@ -260,6 +261,9 @@ def test_version_file_restore(diff_project):
             [(item.rank, item.end) for item in checkpoints]
         )
     ).count() == len(checkpoints)
+
+    # checkpoint v9-v12 which contains basefile should not be created
+    assert FileDiff.can_create_checkpoint(file_path_id, Checkpoint(1, 3)) is False
 
     # let's create new project with basefile at v1 (which can be start of multiple checkpoints)
     working_dir = os.path.join(TMP_DIR, "restore_from_diffs")
@@ -284,10 +288,13 @@ def test_version_file_restore(diff_project):
             )
         )
 
+    # checkpoint v1-v16 which contains basefile should not be created
+    assert FileDiff.can_create_checkpoint(file_path_id, Checkpoint(2, 1)) is False
+
     test_file = os.path.join(project.storage.project_dir, "v17", "base.gpkg")
     os.rename(test_file, test_file + "_backup")
     project.storage.restore_versioned_file("base.gpkg", 17)
-    checkpoints = Checkpoint.get_checkpoints(1, 17)
+    checkpoints = Checkpoint.get_checkpoints(2, 17)
     assert os.path.exists(test_file)
     assert gpkgs_are_equal(test_file, test_file + "_backup")
     assert FileDiff.query.filter_by(file_path_id=file_path_id).filter(
