@@ -303,8 +303,10 @@ def test_create_diff_checkpoint(diff_project):
         assert file_diff and os.path.exists(file_diff.abs_path)
 
     basefile, diffs = FileHistory.diffs_chain(file_path_id, 32)
+    # count checkpoints since we introduced diffs at v11
+    checkpoints = Checkpoint.get_checkpoints(11, 32)
     assert basefile.project_version_name == 9
-    assert len(diffs) == 3
+    assert len(diffs) == len(checkpoints)
     # also a lower diff rank was created
     lower_diff = FileDiff.query.filter_by(version=24, rank=1).first()
     assert os.path.exists(lower_diff.abs_path)
@@ -320,9 +322,12 @@ def test_create_diff_checkpoint(diff_project):
 
     basefile, diffs = FileHistory.diffs_chain(file_path_id, 20)
     assert basefile.project_version_name == 9
-    # individual diff v12 + (v13-v16) + (v17-v20) as the last one
-    assert len(diffs) == 3
-    assert diffs[-1] == diff
+    # individual diffs v11, v12 + (v13-v16) + (v17-v20) as the last one
+    assert len(diffs) == 4
+    assert diffs[0].version == 11 and diffs[0].rank == 0
+    assert diffs[1].version == 12 and diffs[1].rank == 0
+    assert diffs[2].version == 16 and diffs[2].rank == 1
+    assert diffs[3].version == 20 and diffs[3].rank == 1
 
     # repeat - nothing to do
     mtime = os.path.getmtime(diff.abs_path)
@@ -397,9 +402,9 @@ def test_can_create_checkpoint(diff_project):
     # for zero rank diffs we can always create a checkpoint (but that should already exist)
     assert FileDiff.can_create_checkpoint(file_path_id, Checkpoint(0, 4)) is True
 
-    # there are diffs in both ranges, v1-v4 and v5-v8
-    assert FileDiff.can_create_checkpoint(file_path_id, Checkpoint(1, 1)) is True
-    assert FileDiff.can_create_checkpoint(file_path_id, Checkpoint(1, 2)) is True
+    # there are diffs in both ranges, v1-v4 and v5-v8 but both contain basefile
+    assert FileDiff.can_create_checkpoint(file_path_id, Checkpoint(1, 1)) is False
+    assert FileDiff.can_create_checkpoint(file_path_id, Checkpoint(1, 2)) is False
 
     # higher ranks cannot be created as file was removed at v9
     assert FileDiff.can_create_checkpoint(file_path_id, Checkpoint(2, 1)) is False

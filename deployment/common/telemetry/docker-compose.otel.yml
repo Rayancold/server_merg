@@ -1,0 +1,88 @@
+networks:
+  merginmaps:
+    name: mergin
+    external: true
+
+services:
+  otel-collector:
+    # Contrib version is required for StatsD
+    image: otel/opentelemetry-collector-contrib:0.90.0
+    container_name: merginmaps-otel-collector
+    volumes:
+      - ./otel-config.yaml:/etc/otelcol-contrib/config.yaml
+    networks:
+      - merginmaps
+    ports:
+      - "8125:8125/udp" # StatsD (Metrics)
+      - "4317:4317" # OTLP (Traces)
+      - "8889:8889" # Prometheus Scrape Port
+      - "55679:55679"
+    depends_on:
+      tempo:
+        condition: service_started
+
+  alloy:
+    image: grafana/alloy:v1.8.3
+    container_name: merginmaps-alloy
+    volumes:
+      - ./alloy-config.alloy:/etc/alloy/config.alloy
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./alloy-data:/var/lib/alloy/data
+    networks:
+      - merginmaps
+    depends_on:
+      - loki
+    command: run --server.http.listen-addr=0.0.0.0:12345 --storage.path=/var/lib/alloy/data /etc/alloy/config.alloy
+
+  tempo:
+    image: grafana/tempo:2.8.3
+    container_name: merginmaps-tempo
+    command: ["-config.file=/etc/tempo.yaml", "-target=all"]
+    networks:
+      - merginmaps
+    volumes:
+      - ./tempo.yaml:/etc/tempo.yaml
+      # - ./tempo-data:/tmp/tempo 
+    ports:
+      - "3200:3200" # Tempo UI/API
+
+  prometheus:
+    image: prom/prometheus:v3.9.0
+    container_name: merginmaps-prometheus
+    networks:
+      - merginmaps
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+  
+  loki:
+    image: grafana/loki:3.6.4
+    container_name: merginmaps-loki
+    ports:
+      - "3100:3100"
+    user: "root"
+    volumes:
+      - ./loki-config.yaml:/etc/loki/local-config.yaml
+      - ./loki-data:/loki # Persistent storage
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - merginmaps
+
+  grafana:
+    image: grafana/grafana:12.3.2
+    container_name: merginmaps-grafana
+    networks:
+      - merginmaps
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+    volumes:
+      - ./grafana-datasource.yaml:/etc/grafana/provisioning/datasources/datasource.yaml
+      - ./dashboards:/var/lib/grafana/dashboards
+    depends_on:
+      - loki
+      - prometheus
+      - tempo

@@ -1,0 +1,18 @@
+apiVersion: 1
+datasources:
+  - name: Prometheus
+    type: prometheus
+    url: http://merginmaps-prometheus:9090
+    isDefault: true
+  - name: Tempo
+    type: tempo
+    url: http://merginmaps-tempo:3200
+  - name: Loki
+    type: loki
+    url: http://merginmaps-loki:3100
+    jsonData:
+      derivedFields:
+        - datasourceUid: Tempo
+          matcherRegex: '\[(?:ACCESS|INFO|ERROR)\]\s\[(\w{32})\]' # Finds the trace_id in the log JSON/metadata
+          name: TraceID
+          url: '$${__value.raw}' # The raw ID value used to query Tempo

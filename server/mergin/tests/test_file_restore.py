@@ -4,6 +4,7 @@
 import os
 import pytest
 import shutil
+from sqlalchemy import tuple_
 from sqlalchemy.orm.attributes import flag_modified
 
 from ..app import db
@@ -15,6 +16,7 @@ from ..sync.models import (
     Project,
     GeodiffActionHistory,
 )
+from ..sync.utils import Checkpoint
 from . import test_project_dir, TMP_DIR
 from .utils import (
     create_project,
@@ -250,11 +252,53 @@ def test_version_file_restore(diff_project):
     test_file = os.path.join(diff_project.storage.project_dir, "v30", "test.gpkg")
     os.rename(test_file, test_file + "_backup")
     diff_project.storage.restore_versioned_file("test.gpkg", 30)
+    # only count diffs from v11-v30 where they were present
+    checkpoints = Checkpoint.get_checkpoints(11, 30)
     assert os.path.exists(test_file)
     assert gpkgs_are_equal(test_file, test_file + "_backup")
-    assert (
-        FileDiff.query.filter_by(file_path_id=file_path_id)
-        .filter(FileDiff.rank > 0)
-        .count()
-        > 0
+    assert FileDiff.query.filter_by(file_path_id=file_path_id).filter(
+        tuple_(FileDiff.rank, FileDiff.version).in_(
+            [(item.rank, item.end) for item in checkpoints]
+        )
+    ).count() == len(checkpoints)
+
+    # checkpoint v9-v12 which contains basefile should not be created
+    assert FileDiff.can_create_checkpoint(file_path_id, Checkpoint(1, 3)) is False
+
+    # let's create new project with basefile at v1 (which can be start of multiple checkpoints)
+    working_dir = os.path.join(TMP_DIR, "restore_from_diffs")
+    basefile = os.path.join(working_dir, "base.gpkg")
+    project = _prepare_restore_project(working_dir)
+    file_path_id = (
+        ProjectFilePath.query.filter_by(project_id=project.id, path="base.gpkg")
+        .first()
+        .id
     )
+
+    for i in range(17):
+        sql = "INSERT INTO simple (geometry, name) VALUES (GeomFromText('POINT(24.5, 38.2)', 4326), 'insert_test')"
+        execute_query(basefile, sql)
+        pv_latest = push_change(project, "updated", "base.gpkg", working_dir)
+        assert project.latest_version == pv_latest.name
+        assert os.path.exists(
+            os.path.join(
+                project.storage.project_dir,
+                ProjectVersion.to_v_name(pv_latest.name),
+                "base.gpkg",
+            )
+        )
+
+    # checkpoint v1-v16 which contains basefile should not be created
+    assert FileDiff.can_create_checkpoint(file_path_id, Checkpoint(2, 1)) is False
+
+    test_file = os.path.join(project.storage.project_dir, "v17", "base.gpkg")
+    os.rename(test_file, test_file + "_backup")
+    project.storage.restore_versioned_file("base.gpkg", 17)
+    checkpoints = Checkpoint.get_checkpoints(2, 17)
+    assert os.path.exists(test_file)
+    assert gpkgs_are_equal(test_file, test_file + "_backup")
+    assert FileDiff.query.filter_by(file_path_id=file_path_id).filter(
+        tuple_(FileDiff.rank, FileDiff.version).in_(
+            [(item.rank, item.end) for item in checkpoints]
+        )
+    ).count() == len(checkpoints)

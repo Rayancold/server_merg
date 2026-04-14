@@ -1,0 +1,53 @@
+target: all
+
+server:
+  http_listen_address: 0.0.0.0
+  http_listen_port: 3200
+  grpc_listen_address: 0.0.0.0
+  grpc_listen_port: 9095
+
+ingester:
+  lifecycler:
+    id: tempo-single-node
+    address: merginmaps-tempo
+    port: 9095
+    ring:
+      kvstore:
+        store: inmemory
+      replication_factor: 1
+    min_ready_duration: 0s
+    final_sleep: 0s
+  max_block_duration: 5m
+
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: "0.0.0.0:4317"
+  ring:
+    kvstore:
+      store: inmemory
+
+storage:
+  trace:
+    backend: local
+    local:
+      path: /tmp/tempo/traces
+    wal:
+      path: /tmp/tempo/wal
+
+querier:
+  frontend_worker:
+    frontend_address: merginmaps-tempo:9095
+
+overrides:
+  defaults:
+    ingestion:
+      max_traces_per_user: 10000
+
+# Completely disable the distributed networking layer
+memberlist:
+  bind_addr: ["0.0.0.0"]
+  join_members: []
+  abort_if_cluster_join_fails: false

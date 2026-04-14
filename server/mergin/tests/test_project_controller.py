@@ -40,7 +40,7 @@ from ..sync.models import (
 )
 from ..sync.files import files_changes_from_upload
 from ..sync.schemas import ProjectListSchema
-from ..sync.utils import generate_checksum, is_versioned_file
+from ..sync.utils import Checkpoint, generate_checksum, is_versioned_file
 from ..auth.models import User, UserProfile
 
 from . import (
@@ -1915,11 +1915,15 @@ def test_file_diffs_chain(diff_project):
     assert basefile.version.name == 5
     assert len(diffs) == 2
 
-    # nothing happened in v8 (=v7) but we have now merged diff in chain v5-v8
+    # nothing happened in v8 (=v7)
     basefile, diffs = FileHistory.diffs_chain(file_id, 8)
     assert basefile.version.name == 5
-    assert len(diffs) == 1
-    assert diffs[0].rank == 1 and diffs[0].version == 8
+    assert len(diffs) == 2
+    assert diffs[0].rank == 0 and diffs[0].version == 6
+    assert diffs[1].rank == 0 and diffs[1].version == 7
+
+    # now merged diff in chain v5-v8 cannot be created as it contains basefile
+    assert FileDiff.can_create_checkpoint(file_id, Checkpoint(1, 2)) is False
 
     # file was removed in v9
     basefile, diffs = FileHistory.diffs_chain(file_id, 9)
