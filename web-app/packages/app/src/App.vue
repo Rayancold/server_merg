@@ -53,7 +53,6 @@ import {
   useNotificationStore,
   useUserStore,
   InstanceMaintenanceMessage,
-  useProjectStore,
   useRouterTitle,
   routeUtils
 } from '@mergin/lib'
@@ -125,11 +124,9 @@ export default defineComponent({
     const toast = useToast()
     const notificationStore = useNotificationStore()
     const layoutStore = useLayoutStore()
-    const projectStore = useProjectStore()
 
     notificationStore.init(toast)
     layoutStore.init()
-    projectStore.filterPermissions(['editor'], ['edit'])
     watchEffect(() => {
       document.title = title.value
     })

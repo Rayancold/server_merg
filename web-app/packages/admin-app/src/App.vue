@@ -55,7 +55,6 @@ import {
   useNotificationStore,
   useUserStore,
   useLayoutStore,
-  useProjectStore,
   useRouterTitle
 } from '@mergin/lib'
 import { mapActions, mapState } from 'pinia'
@@ -143,11 +142,9 @@ export default defineComponent({
     const toast = useToast()
     const notificationStore = useNotificationStore()
     const layoutStore = useLayoutStore()
-    const projectStore = useProjectStore()
 
     notificationStore.init(toast)
     layoutStore.init()
-    projectStore.filterPermissions(['editor'], ['edit'])
     watchEffect(() => {
       document.title = title.value
     })
