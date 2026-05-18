@@ -1,5 +1,7 @@
 from datetime import datetime
 
+import pytest
+
 from . import DEFAULT_USER
 from ..sync.models import Project, ProjectRole
 from .utils import add_user, create_project, create_workspace
@@ -14,6 +16,69 @@ def test_project_permissions(client):
     project_handler = ProjectHandler()
     project_permission = project_handler.get_push_permission(None)
     assert project_permission == ProjectPermissions.Upload
+
+
+@pytest.mark.parametrize(
+    "changes,expected",
+    [
+        (None, ProjectPermissions.Upload),
+        (
+            {"added": [], "updated": [], "removed": []},
+            ProjectPermissions.Upload,
+        ),
+        (
+            {"added": [{"path": "photos/photo.jpg"}], "updated": [], "removed": []},
+            ProjectPermissions.Edit,
+        ),
+        (
+            {"added": [{}], "updated": [], "removed": []},
+            ProjectPermissions.Upload,
+        ),
+        (
+            {"added": [{"path": "data/new_layer.gpkg"}], "updated": [], "removed": []},
+            ProjectPermissions.Upload,
+        ),
+        (
+            {"added": [{"path": "survey.qgs"}], "updated": [], "removed": []},
+            ProjectPermissions.Upload,
+        ),
+        (
+            {"added": [{"path": "mergin-config.json"}], "updated": [], "removed": []},
+            ProjectPermissions.Upload,
+        ),
+        (
+            {
+                "added": [],
+                "updated": [
+                    {
+                        "path": "data/base.gpkg",
+                        "diff": {
+                            "path": "data/base.gpkg-diff",
+                            "checksum": "abc",
+                            "size": 1,
+                        },
+                    }
+                ],
+                "removed": [],
+            },
+            ProjectPermissions.Edit,
+        ),
+        (
+            {"added": [], "updated": [{"path": "data/base.gpkg"}], "removed": []},
+            ProjectPermissions.Upload,
+        ),
+        (
+            {"added": [], "updated": [{"path": "survey.qgz"}], "removed": []},
+            ProjectPermissions.Upload,
+        ),
+        (
+            {"added": [], "updated": [], "removed": [{"path": "photos/photo.jpg"}]},
+            ProjectPermissions.Upload,
+        ),
+    ],
+)
+def test_project_push_permission_for_editor_safe_changes(changes, expected):
+    assert ProjectHandler().get_push_permission(changes) == expected
 
 
 def test_email_receivers(client):
