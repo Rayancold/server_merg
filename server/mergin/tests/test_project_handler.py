@@ -22,9 +22,11 @@ def test_project_permissions(client):
     "changes,expected",
     [
         (None, ProjectPermissions.Upload),
+        # all-empty change set passes the permission gate as Edit; endpoint
+        # validation rejects it later as "No changes" (400/422)
         (
             {"added": [], "updated": [], "removed": []},
-            ProjectPermissions.Upload,
+            ProjectPermissions.Edit,
         ),
         (
             {"added": [{"path": "photos/photo.jpg"}], "updated": [], "removed": []},
@@ -36,14 +38,30 @@ def test_project_permissions(client):
         ),
         (
             {"added": [{"path": "data/new_layer.gpkg"}], "updated": [], "removed": []},
-            ProjectPermissions.Upload,
+            ProjectPermissions.Edit,
         ),
         (
             {"added": [{"path": "survey.qgs"}], "updated": [], "removed": []},
             ProjectPermissions.Upload,
         ),
         (
+            {"added": [{"path": "SURVEY.QGS"}], "updated": [], "removed": []},
+            ProjectPermissions.Upload,
+        ),
+        (
             {"added": [{"path": "mergin-config.json"}], "updated": [], "removed": []},
+            ProjectPermissions.Upload,
+        ),
+        (
+            {"added": [{"path": "MERGIN-CONFIG.JSON"}], "updated": [], "removed": []},
+            ProjectPermissions.Upload,
+        ),
+        (
+            {
+                "added": [],
+                "updated": [{"path": "config/mergin-config.json"}],
+                "removed": [],
+            },
             ProjectPermissions.Upload,
         ),
         (
@@ -68,11 +86,77 @@ def test_project_permissions(client):
             ProjectPermissions.Upload,
         ),
         (
+            {
+                "added": [],
+                "updated": [{"path": "data/base.gpkg", "diff": {}}],
+                "removed": [],
+            },
+            ProjectPermissions.Upload,
+        ),
+        (
+            {
+                "added": [],
+                "updated": [
+                    {
+                        "path": "data/BASE.GPKG",
+                        "diff": {
+                            "path": "data/BASE.GPKG-diff",
+                            "checksum": "abc",
+                            "size": 1,
+                        },
+                    }
+                ],
+                "removed": [],
+            },
+            ProjectPermissions.Edit,
+        ),
+        (
             {"added": [], "updated": [{"path": "survey.qgz"}], "removed": []},
             ProjectPermissions.Upload,
         ),
         (
             {"added": [], "updated": [], "removed": [{"path": "photos/photo.jpg"}]},
+            ProjectPermissions.Edit,
+        ),
+        (
+            {"added": [], "updated": [], "removed": [{"path": "data/base.gpkg"}]},
+            ProjectPermissions.Upload,
+        ),
+        (
+            {"added": [], "updated": [], "removed": [{"path": "survey.qgs"}]},
+            ProjectPermissions.Upload,
+        ),
+        (
+            {"added": [], "updated": [], "removed": [{"path": "mergin-config.json"}]},
+            ProjectPermissions.Upload,
+        ),
+        (
+            {"added": [], "updated": [], "removed": [{}]},
+            ProjectPermissions.Upload,
+        ),
+        (
+            {
+                "added": [{"path": "photos/photo.jpg"}],
+                "updated": [
+                    {
+                        "path": "data/base.gpkg",
+                        "diff": {
+                            "path": "data/base.gpkg-diff",
+                            "checksum": "abc",
+                            "size": 1,
+                        },
+                    }
+                ],
+                "removed": [],
+            },
+            ProjectPermissions.Edit,
+        ),
+        (
+            {
+                "added": [{"path": "photos/photo.jpg"}],
+                "updated": [],
+                "removed": [{"path": "data/base.gpkg"}],
+            },
             ProjectPermissions.Upload,
         ),
     ],

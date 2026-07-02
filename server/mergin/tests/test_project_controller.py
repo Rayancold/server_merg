@@ -742,6 +742,25 @@ def test_update_project(client):
     assert resp.json["role"] == "owner"
 
 
+def test_bulk_roles_update_revokes_all_members_of_role(client):
+    """Regression: unset_role() removes members from project_users while
+    bulk_roles_update iterates it, which used to skip every other member."""
+    workspace = create_workspace()
+    owner = add_user("bulk_owner")
+    project = create_project("test_bulk_roles", workspace, owner)
+    editors = [add_user(f"bulk_editor{i}") for i in range(3)]
+    for editor in editors:
+        project.set_role(editor.id, ProjectRole.EDITOR)
+    db.session.commit()
+
+    affected = project.bulk_roles_update({ProjectRole.EDITOR: []})
+    db.session.commit()
+
+    assert affected == {editor.id for editor in editors}
+    for editor in editors:
+        assert project.get_role(editor.id) is None
+
+
 test_download_file_data = [
     (test_project, "test.txt", "text/plain", 200),
     (test_project, "logo.pdf", "application/pdf", 200),

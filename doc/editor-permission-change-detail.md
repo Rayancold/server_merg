@@ -50,20 +50,29 @@ return ProjectPermissions.Edit
 | `_editor_safe_changes(changes)` | Evalúa si todo el payload puede pasar como Editor. |
 | `_editor_safe_added_file(item)` | Decide si un archivo agregado es permitido para Editor. |
 | `_editor_safe_updated_file(item)` | Decide si un archivo actualizado es permitido para Editor. |
-| `_is_protected_file(path)` | Detecta `.qgs`, `.qgz` y `mergin-config.json`. |
+| `_editor_safe_removed_file(item)` | Decide si un archivo borrado es permitido para Editor. |
+| `_is_protected_file(path)` | Detecta `.qgs`, `.qgz` y `mergin-config.json` (case-insensitive). |
 
 #### Regla implementada
 
+Revisión 2026-07-02: alineada con el contrato oficial de Editor
+(https://merginmaps.com/docs/manage/permissions/). La primera versión bloqueaba
+todos los removals y todos los adds de `.gpkg`; eso rompía el sync de editores
+usando clientes oficiales (el cliente casi no filtra del lado cliente).
+También se corrigió un bypass: el match de `mergin-config.json` era
+case-sensitive, así que `MERGIN-CONFIG.JSON` clasificaba como editor-safe.
+
 | Cambio recibido | Resultado |
 |---|---|
-| Sin cambios reales | Writer |
-| Agregar archivo común | Editor |
+| `changes` nulo | Writer |
+| Listas de cambios vacías | Editor — el endpoint responde "No changes" (400/422) en vez de un 403 confuso |
+| Agregar archivo común (incluye `.gpkg` / `.sqlite`) | Editor |
 | Actualizar archivo común | Editor |
 | Actualizar `.gpkg` / `.sqlite` con `diff` | Editor |
-| Agregar `.gpkg` / `.sqlite` | Writer |
-| Actualizar `.gpkg` / `.sqlite` sin `diff` | Writer |
-| Borrar cualquier archivo | Writer |
-| Tocar `.qgs`, `.qgz`, `mergin-config.json` | Writer |
+| Borrar archivo común (fotos, adjuntos) | Editor |
+| Borrar `.gpkg` / `.sqlite` | Writer |
+| Actualizar `.gpkg` / `.sqlite` sin `diff` o con `diff` vacío | Writer |
+| Tocar `.qgs`, `.qgz`, `mergin-config.json` (cualquier casing) | Writer |
 | Path vacío/desconocido | Writer |
 
 #### Intención
@@ -206,21 +215,19 @@ Incluye:
 
 ## Verificación realizada
 
-Se ejecutó:
+Revisión 2026-07-02 — se ejecutó con un venv de Python 3.12 (deps del Pipfile):
 
 ```bash
-python -m py_compile server/mergin/sync/project_handler.py server/mergin/tests/test_project_handler.py
+cd server
+python -m pytest "mergin/tests/test_project_handler.py::test_project_push_permission_for_editor_safe_changes" -q
 ```
 
-Resultado: pasó.
+Resultado: **22 passed** (los 22 casos parametrizados de la clasificación).
 
-No se pudo ejecutar:
-
-```bash
-python -m pytest server/mergin/tests/test_project_handler.py -q
-```
-
-Motivo: el Python disponible no tenía `pytest`.
+Notas de entorno Windows: `python-magic` cuelga sin libmagic (usar
+`python-magic-bin`), y `pysqlite3-binary` no tiene wheels para Windows
+(alias al `sqlite3` de stdlib). Los tests con fixture de DB requieren
+Postgres y no se corrieron.
 
 No se pudo ejecutar validación frontend con Yarn porque `yarn` no estaba disponible.
 

@@ -402,7 +402,9 @@ class Project(db.Model):
                     id_diffs.append(user_id)
 
             # make sure we do not have other user ids than in the list at this role
-            for user in self.project_users:
+            # iterate over a copy: unset_role removes members from project_users
+            # and mutating the list mid-iteration would skip elements
+            for user in list(self.project_users):
                 if ProjectRole(user.role) == role and user.user_id not in access.get(
                     role
                 ):

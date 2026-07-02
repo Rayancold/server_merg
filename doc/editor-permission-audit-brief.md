@@ -35,27 +35,32 @@ Fuente oficial: https://merginmaps.com/docs/manage/permissions/
 
 | Caso | Permiso requerido |
 |---|---|
-| `changes` vacío, nulo o sin cambios reales | `ProjectPermissions.Upload` |
-| Agregar archivo no protegido y no versionado | `ProjectPermissions.Edit` |
+| `changes` nulo o con forma desconocida | `ProjectPermissions.Upload` |
+| `changes` con listas vacías (sin cambios reales) | `ProjectPermissions.Edit` — el endpoint lo rechaza después con "No changes" (400 en v1, 422 en v2) |
+| Agregar archivo no protegido (incluye `.gpkg` / `.sqlite`) | `ProjectPermissions.Edit` |
 | Actualizar archivo no protegido y no versionado | `ProjectPermissions.Edit` |
 | Actualizar `.gpkg` / `.sqlite` con `diff` | `ProjectPermissions.Edit` |
-| Borrar cualquier archivo | `ProjectPermissions.Upload` |
-| Agregar `.gpkg` / `.sqlite` | `ProjectPermissions.Upload` |
-| Actualizar `.gpkg` / `.sqlite` sin `diff` | `ProjectPermissions.Upload` |
-| Agregar/actualizar `.qgs` / `.qgz` | `ProjectPermissions.Upload` |
-| Agregar/actualizar `mergin-config.json` | `ProjectPermissions.Upload` |
+| Borrar archivo no protegido y no versionado | `ProjectPermissions.Edit` |
+| Borrar `.gpkg` / `.sqlite` | `ProjectPermissions.Upload` |
+| Actualizar `.gpkg` / `.sqlite` sin `diff` (o con `diff` vacío) | `ProjectPermissions.Upload` |
+| Agregar/actualizar/borrar `.qgs` / `.qgz` | `ProjectPermissions.Upload` |
+| Agregar/actualizar/borrar `mergin-config.json` (cualquier casing o subcarpeta) | `ProjectPermissions.Upload` |
 | Path vacío/desconocido | `ProjectPermissions.Upload` |
 
 ## Punto delicado
 
-La implementación actual es **más conservadora** que la documentación oficial:
+Revisión 2026-07-02: la regla quedó alineada con el contrato oficial de Editor
+(https://merginmaps.com/docs/manage/permissions/). Cambios respecto de la
+primera versión, que era más estricta:
 
-- La doc indica que Editor puede agregar algunos archivos, incluyendo GeoPackage en ciertos escenarios.
-- La implementación actual bloquea agregar `.gpkg` / `.sqlite`.
-- La doc permite remover algunos archivos, pero no `.qgs`, `.qgz`, `mergin-config.json` ni `.gpkg`.
-- La implementación actual bloquea **todo** removal.
-
-Esto fue intencional para evitar que Editor sea Writer disfrazado. Auditar si ese tradeoff es aceptable.
+- Se permite agregar archivos `.gpkg` / `.sqlite` (agregar un GeoPackage suelto
+  no modifica el proyecto QGIS; convertirlo en capa requiere editar `.qgs`,
+  que sigue bloqueado).
+- Se permiten removals de archivos no protegidos y no versionados (fotos,
+  adjuntos). Borrar `.gpkg`, `.qgs`, `.qgz` o `mergin-config.json` sigue
+  requiriendo Writer.
+- El match de archivos protegidos ahora es case-insensitive: antes
+  `MERGIN-CONFIG.JSON` pasaba como editor-safe (bug confirmado en auditoría).
 
 ## Preguntas que la segunda IA debe responder
 

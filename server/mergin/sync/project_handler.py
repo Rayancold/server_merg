@@ -16,9 +16,12 @@ class ProjectHandler(AbstractProjectHandler):
     def get_push_permission(self, changes: dict):
         """Return the minimum project permission required for a push.
 
-        Editors may push field-data changes, but structural project changes
-        still require Writer. Keep this conservative: anything unknown or
-        structural falls back to Upload/Writer.
+        Editors follow the official editor contract
+        (https://merginmaps.com/docs/manage/permissions/): they may add files
+        (including new GeoPackages), update files (GeoPackages only through a
+        geodiff changeset) and remove non-versioned files, but may never touch
+        QGIS project files or mergin-config.json, nor remove GeoPackages.
+        Anything unknown falls back to Upload/Writer.
         """
         if not changes or not self._editor_safe_changes(changes):
             return ProjectPermissions.Upload
@@ -27,12 +30,10 @@ class ProjectHandler(AbstractProjectHandler):
     @staticmethod
     def _editor_safe_changes(changes: dict) -> bool:
         if not any(changes.get(key) for key in ("added", "updated", "removed")):
-            return False
-
-        # Removing project files is structural at server level. Feature deletes
-        # are represented inside GeoPackage diffs, not as file removals.
-        if changes.get("removed"):
-            return False
+            # An all-empty change set carries no risk. Let it pass the permission
+            # gate so endpoint validation rejects it as "No changes" (400/422)
+            # instead of a misleading 403 for editors.
+            return True
 
         for item in changes.get("added", []):
             if not ProjectHandler._editor_safe_added_file(item):
@@ -42,6 +43,10 @@ class ProjectHandler(AbstractProjectHandler):
             if not ProjectHandler._editor_safe_updated_file(item):
                 return False
 
+        for item in changes.get("removed", []):
+            if not ProjectHandler._editor_safe_removed_file(item):
+                return False
+
         return True
 
     @staticmethod
@@ -49,9 +54,7 @@ class ProjectHandler(AbstractProjectHandler):
         path = item.get("path", "")
         if not path:
             return False
-        return not ProjectHandler._is_protected_file(path) and not is_versioned_file(
-            path
-        )
+        return not ProjectHandler._is_protected_file(path)
 
     @staticmethod
     def _editor_safe_updated_file(item: dict) -> bool:
@@ -69,8 +72,18 @@ class ProjectHandler(AbstractProjectHandler):
         return True
 
     @staticmethod
+    def _editor_safe_removed_file(item: dict) -> bool:
+        path = item.get("path", "")
+        if not path:
+            return False
+        # Removing a GeoPackage deletes a whole dataset, so it stays Writer-only.
+        return not ProjectHandler._is_protected_file(path) and not is_versioned_file(
+            path
+        )
+
+    @staticmethod
     def _is_protected_file(path: str) -> bool:
-        return is_qgis(path) or os.path.basename(path) in PROTECTED_EDITOR_FILES
+        return is_qgis(path) or os.path.basename(path).lower() in PROTECTED_EDITOR_FILES
 
     def get_email_receivers(self, project: Project) -> List[User]:
         return (
